@@ -1,13 +1,11 @@
+
 import Die from '../core/Die';
 
-export default class ClearDie implements Dice {
-  sides: number;
-  value: number | null;
-  isTradable: boolean;
+export default class ClearDie extends Die {
+  public isTradable: boolean;
 
-  constructor(sides: number, isTradable: boolean) {
-    this.sides = sides;
-    this.value = null;
-    this.isTradable = false; // Must be rolled first.
+  constructor(faces: number, isTradable: boolean = false) {
+    super(faces);
+    this.isTradable = isTradable; // Must be rolled first.
   }
 }

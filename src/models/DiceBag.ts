@@ -32,7 +32,13 @@ export default class DiceBag {
     ];
     for (const { DieClass, count, sides, ...config } of dieConfigs) {
       for (let i = 0; i < count; i++) {
-        this.dice.push(new DieClass(sides, ...Object.values(config)));
+        if (DieClass === BlueDie) {
+          this.dice.push(new BlueDie(sides, config.isGlittery ?? false));
+        } else if (DieClass === ClearDie) {
+          this.dice.push(new ClearDie(sides, config.isTradable ?? false));
+        } else {
+          this.dice.push(new DieClass(sides));
+        }
       }
     }
   }

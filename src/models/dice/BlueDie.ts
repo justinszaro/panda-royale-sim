@@ -1,13 +1,10 @@
 import Die from '../core/Die';
 
-export default class BlueDie implements Die {
-  sides: number;
-  value: number | null;
+export default class BlueDie extends Die {
   isGlittery: boolean;
 
-  constructor(sides: number, isGlittery: boolean) {
-    this.sides = sides;
-    this.value = null;
+  constructor(faces: number, isGlittery: boolean = false) {
+    super(faces);
     this.isGlittery = isGlittery;
   }
 }

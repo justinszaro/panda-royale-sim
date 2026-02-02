@@ -12,7 +12,6 @@
   },
   "license": "ISC",
   "author": "Justin Szaro",
-  "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "play": "pnpm tsc && node ./lib/index.js",

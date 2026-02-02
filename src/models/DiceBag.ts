@@ -1,3 +1,4 @@
+import Die from './core/Die';
 import {
   BlueDie,
   ClearDie,
@@ -41,5 +42,24 @@ export default class DiceBag {
         }
       }
     }
+  }
+
+  public drawRandomDice(numDice: number): Die[] {
+    const drawnDice: Die[] = [];
+    for (let i = 0; i < numDice; i++) {
+      if (this.dice.length === 0) break;
+      const randomIndex = Math.floor(Math.random() * this.dice.length);
+      const [drawnDie] = this.dice.splice(randomIndex, 1);
+      if (drawnDie) {
+        drawnDice.push(drawnDie);
+      }
+    }
+
+    console.log(`Dice remaining: ${this.dice.length}`);
+    return drawnDice;
+  }
+
+  public returnDice(diceToReturn: Die[]) {
+    this.dice.push(...diceToReturn);
   }
 }

@@ -1,16 +1,10 @@
 import DiceBag from './models/DiceBag';
-import { PinkDie } from './models/dice';
 import Player from './models/core/Player';
+import {
+  determineWinner,
+  getPityDice
+} from './utils';
 
-const getPityDice = (numPlayers: number) => {
-  let numOfDice;
-  if (numPlayers <= 3) numOfDice = 1;
-  if (numPlayers <= 6) numOfDice = 2;
-  if (numPlayers <= 9) numOfDice = 3;
-  if (numPlayers <= 10) numOfDice = 4;
-
-  return new Array(numOfDice).fill(null).map(() => new PinkDie(12));
-}
 
 const playGame = () => {
   const diceBag = new DiceBag();
@@ -21,15 +15,31 @@ const playGame = () => {
     console.log(`--- Round ${round} ---`);
     players.forEach((player, index) => {
       player.rollDice()
+      const roundScore = player.sumScore();
 
-      console.log(`${player.name} rolled a score of ${player.roundScore}`);
+      console.log(`${player.name} rolled a score of ${roundScore}`);
     });
 
-    const scores = players.sort((a, b) => a.roundScore - b.roundScore);
+    const scores = players.sort((a, b) => b.roundScore - a.roundScore);
 
-    console.log(scores);
+    // TODO: Someone gets a panda token.
+    // TODO: Lowest score gets the pity dice.
+    let diceForGrabs = diceBag.drawRandomDice(players.length + 1);
+    players.forEach((player, index) => {
+      const result = player.chooseDie(diceForGrabs);
+      if (result) {
+        diceForGrabs = result;
+      }
+    });
+
+    diceBag.returnDice(diceForGrabs);
   }
 
+  const winner = determineWinner(players);
+
+  if (winner) {
+    console.log(`The winner is ${winner.name} with a total score of ${winner.scores.reduce((acc, score) => acc + score, 0)}!`);
+  }
 }
 
 // For 10 rounds,

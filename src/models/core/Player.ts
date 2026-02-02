@@ -44,6 +44,9 @@ export default class Player {
     if (chosenDie) {
       this.dice.push(chosenDie);
     }
+
+    dice.splice(randomChoice, 1);
+    return dice;
   }
 
   tradeDie(players: Player[]) {
@@ -84,24 +87,26 @@ export default class Player {
       this.sumGreenDice() +
       this.sumClearDice() +
       this.sumPinkDice();
+    this.scores.push(this.roundScore);
+
     return this.roundScore;
   }
 
   sumYellowDice(): number {
     const yellowDice = this.dice.filter(die => die instanceof YellowDie);
-    return yellowDice.reduce((sum, die) => sum + (die.value || 0), 0);
+    return yellowDice.reduce((sum, die) => sum + (die?.value || 0), 0);
   }
 
   sumPurpleDice(): number {
     const purpleDice = this.dice.filter(die => die instanceof PurpleDie);
-    return purpleDice.reduce((sum, die) => sum + (die.value || 0), 0) * 2;
+    return purpleDice.reduce((sum, die) => sum + (die?.value || 0), 0) * 2;
   }
 
   sumBlueDice(): number {
     const blueDice = this.dice.filter(die => die instanceof BlueDie);
     const hasGlitterDice = blueDice.some(die => (die as BlueDie).isGlittery);
 
-    let sum = blueDice.reduce((sum, die) => sum + (die.value || 0), 0);
+    let sum = blueDice.reduce((sum, die) => sum + (die?.value || 0), 0);
     if (hasGlitterDice) {
       sum *= 2;
     }
@@ -111,7 +116,7 @@ export default class Player {
 
   sumRedDice(): number {
     const redDice = this.dice.filter(die => die instanceof RedDie);
-    let sum = redDice.reduce((sum, die) => sum + (die.value || 0), 0);
+    let sum = redDice.reduce((sum, die) => sum + (die?.value || 0), 0);
 
     return sum * redDice.length;
   }
@@ -122,17 +127,17 @@ export default class Player {
       return 0;
     }
 
-    return greenDie.value || 0;
+    return greenDie?.value || 0;
   }
 
   sumClearDice(): number {
     const clearDice = this.dice.filter(die => die instanceof ClearDie);
-    return clearDice.reduce((sum, die) => sum + (die.value || 0), 0);
+    return clearDice.reduce((sum, die) => sum + (die?.value || 0), 0);
   }
 
   sumPinkDice(): number {
     const pinkDie = this.dice.find(die => die instanceof PinkDie) as PinkDie;
 
-    return pinkDie.value || 0;
+    return pinkDie?.value || 0;
   }
 }

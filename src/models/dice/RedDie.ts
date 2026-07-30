@@ -1,7 +1,8 @@
-
-import Die from '../core/Die';
+import Die from "../core/Die";
 
 export default class RedDie extends Die {
+  static color = "red";
+
   constructor(faces: number) {
     super(faces);
   }

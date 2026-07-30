@@ -140,4 +140,8 @@ export default class Player {
 
     return pinkDie?.value || 0;
   }
+
+  toString(): string {
+    return `${this.name} - Dice: [${this.dice.map(die => die.toString()).join(', ')}] - Scores: [${this.scores.join(', ')}]`;
+  }
 }

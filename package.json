@@ -1,5 +1,5 @@
 {
-  "name": "panda-royale-sim",
+  "name": "@justinszaro/panda-royale-sim",
   "version": "1.0.0",
   "description": "A simulator that plays the Dice Rolling game Panda Royale",
   "homepage": "https://github.com/justinszaro/panda-royale-sim#readme",
@@ -12,10 +12,26 @@
   },
   "license": "ISC",
   "author": "Justin Szaro",
-  "main": "index.js",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "scripts": {
-    "play": "pnpm tsc && node ./lib/index.js",
     "build": "tsc",
+    "prepack": "pnpm run build",
     "test": "vitest"
   },
   "devDependencies": {

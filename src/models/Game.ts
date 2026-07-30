@@ -45,6 +45,7 @@ export default class Game {
   public playRound() {
     this.players.forEach((player: Player, index: number) => {
       player.rollDice();
+      player.sumScore();
     });
 
     const scores = this.players.sort((a, b) => b.roundScore - a.roundScore);

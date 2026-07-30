@@ -55,7 +55,6 @@ export default class DiceBag {
       }
     }
 
-    console.log(`Dice remaining: ${this.dice.length}`);
     return drawnDice;
   }
 

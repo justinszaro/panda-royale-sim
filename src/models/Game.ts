@@ -1,6 +1,6 @@
-import DiceBag from './DiceBag';
-import { PinkDie } from './dice';
-import Player from './core/Player';
+import DiceBag from "./DiceBag";
+import { PinkDie } from "./dice";
+import Player from "./core/Player";
 
 const NUM_ROUNDS = 10;
 
@@ -26,7 +26,7 @@ export default class Game {
 
   public setRound(round: number): void {
     if (!Number.isInteger(round) || round < 1) {
-      throw new RangeError('round must be an integer >= 1');
+      throw new RangeError("round must be an integer >= 1");
     }
 
     this.round = Math.min(round, NUM_ROUNDS);
@@ -43,17 +43,19 @@ export default class Game {
   }
 
   public playRound() {
-    this.players.forEach((player: Player, index: number) => {
+    this.players.forEach((player: Player) => {
       player.rollDice();
       player.sumScore();
     });
 
-    const scores = this.players.sort((a, b) => b.roundScore - a.roundScore);
+    const scores = [...this.players].sort(
+      (a, b) => b.roundScore - a.roundScore,
+    );
 
     // TODO: Someone gets a panda token.
     // TODO: Lowest score gets the pity dice.
     let diceForGrabs = this.diceBag.drawRandomDice(this.players.length + 1);
-    this.players.forEach((player: Player, index: number) => {
+    this.players.forEach((player: Player) => {
       const result = player.chooseDie(diceForGrabs);
       if (result) {
         diceForGrabs = result;
@@ -64,7 +66,11 @@ export default class Game {
   }
 
   public determineWinner() {
-    const sortedPlayers = this.players.sort((a, b) => b.scores.reduce((acc, score) => acc + score, 0) - a.scores.reduce((acc, score) => acc + score, 0));
+    const sortedPlayers = [...this.players].sort(
+      (a, b) =>
+        b.scores.reduce((acc, score) => acc + score, 0) -
+        a.scores.reduce((acc, score) => acc + score, 0),
+    );
     return sortedPlayers[0];
   }
 }

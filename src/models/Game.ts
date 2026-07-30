@@ -20,6 +20,18 @@ export default class Game {
     this.pityDice = this.getPityDice(players.length);
   }
 
+  public getRound(): number {
+    return this.round;
+  }
+
+  public setRound(round: number): void {
+    if (!Number.isInteger(round) || round < 1) {
+      throw new RangeError('round must be an integer >= 1');
+    }
+
+    this.round = Math.min(round, NUM_ROUNDS);
+  }
+
   private getPityDice(numPlayers: number) {
     let numOfDice;
     if (numPlayers <= 3) numOfDice = 1;
@@ -30,9 +42,9 @@ export default class Game {
     return new Array(numOfDice).fill(null).map(() => new PinkDie(12));
   }
 
-  playRound() {
-    this.platers.forEach((player, index) => {
-      player.roleDice();
+  public playRound() {
+    this.players.forEach((player: Player, index: number) => {
+      player.rollDice();
     });
 
     const scores = this.players.sort((a, b) => b.roundScore - a.roundScore);
@@ -40,15 +52,17 @@ export default class Game {
     // TODO: Someone gets a panda token.
     // TODO: Lowest score gets the pity dice.
     let diceForGrabs = this.diceBag.drawRandomDice(this.players.length + 1);
-    players.forEach((player, index) => {
+    this.players.forEach((player: Player, index: number) => {
       const result = player.chooseDie(diceForGrabs);
       if (result) {
         diceForGrabs = result;
       }
     });
+
+    this.setRound(this.getRound() + 1);
   }
 
-  determineWinner() {
+  public determineWinner() {
     const sortedPlayers = this.players.sort((a, b) => b.scores.reduce((acc, score) => acc + score, 0) - a.scores.reduce((acc, score) => acc + score, 0));
     return sortedPlayers[0];
   }

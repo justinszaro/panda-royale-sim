@@ -44,6 +44,7 @@ export default class Game {
 
   public playRound() {
     this.players.forEach((player: Player) => {
+      player.beginRound();
       player.rollDice();
       player.sumScore();
     });
@@ -68,8 +69,8 @@ export default class Game {
   public determineWinner() {
     const sortedPlayers = [...this.players].sort(
       (a, b) =>
-        b.scores.reduce((acc, score) => acc + score, 0) -
-        a.scores.reduce((acc, score) => acc + score, 0),
+        b.scores.reduce((acc, score) => acc + score.total, 0) -
+        a.scores.reduce((acc, score) => acc + score.total, 0),
     );
     return sortedPlayers[0];
   }

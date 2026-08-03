@@ -27,10 +27,12 @@ export default class Player {
   scores: RoundScore[] = [];
   roundScore: number;
   private currentRoundScore?: RoundScore;
+  hasPandaToken: boolean;
 
   constructor(name: string) {
     this.id = Player.generateId();
     this.name = name;
+    this.hasPandaToken = false;
 
     this.dice = [new YellowDie(6)];
     this.roundScore = 0;
@@ -58,9 +60,10 @@ export default class Player {
 
   public reRollYellowDice() {
     const yellowDice = this.dice.filter((die) => die instanceof YellowDie);
-    yellowDice.forEach((die) => die.roll());
-
-    return this.sumYellowDice();
+    return yellowDice.reduce(
+      (sum, die) => sum + Math.floor(Math.random() * die.sides) + 1,
+      0,
+    );
   }
 
   public chooseDie(dice: Die[]) {

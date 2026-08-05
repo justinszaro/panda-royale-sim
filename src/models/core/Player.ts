@@ -29,6 +29,7 @@ export default class Player {
   private currentRoundScore?: RoundScore;
   hasPandaToken: boolean;
   shouldSeekYellow: boolean;
+  isHuman: boolean = false;
 
   constructor(name: string) {
     this.id = Player.generateId();

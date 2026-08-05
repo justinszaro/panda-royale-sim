@@ -2,9 +2,9 @@ import Die from "../core/Die";
 import { ClearDie, RedDie } from "../dice";
 import Player from "../core/Player";
 
-export default class RedRicky extends Player {
+export default class RedRyder extends Player {
   constructor() {
-    super("Red Ricky");
+    super("Red Ryder");
   }
 
   public chooseDie(dice: Die[]) {
@@ -45,17 +45,22 @@ export default class RedRicky extends Player {
       const opponentsWithRed = players.filter((p) =>
         p.dice.some((die) => die instanceof RedDie),
       );
-      const randomOpponent = opponentsWithRed[Math.floor(Math.random() * opponentsWithRed.length)];
+      const randomOpponent =
+        opponentsWithRed[Math.floor(Math.random() * opponentsWithRed.length)];
       if (!randomOpponent) continue;
 
-      const redDice = randomOpponent.dice.filter((die) => die instanceof RedDie);
+      const redDice = randomOpponent.dice.filter(
+        (die) => die instanceof RedDie,
+      );
       if (redDice.length === 0) continue;
 
       const dieToTrade = redDice[Math.floor(Math.random() * redDice.length)];
       if (!dieToTrade) continue;
 
       this.dice = this.dice.filter((die) => die !== whiteDie);
-      randomOpponent.dice = randomOpponent.dice.filter((die) => die !== dieToTrade);
+      randomOpponent.dice = randomOpponent.dice.filter(
+        (die) => die !== dieToTrade,
+      );
 
       this.dice.push(dieToTrade);
       randomOpponent.dice.push(whiteDie);

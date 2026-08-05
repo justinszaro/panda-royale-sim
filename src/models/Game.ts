@@ -1,19 +1,24 @@
 import DiceBag from "./DiceBag";
+import Die from "./core/Die";
 import { PinkDie } from "./dice";
 import Player from "./core/Player";
 
 const NUM_ROUNDS = 10;
 
+type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'gameover';
+
 export default class Game {
   public round: number = 1;
+  public phase: GamePhase = 'idle';
+  public finished: boolean = false;
 
   public diceBag: DiceBag;
+  public dicePool: Die[] = [];
   public pityDice: PinkDie[] = [];
 
   public players: Player[] = [];
 
   constructor(players: Player[]) {
-    this.round = 1;
     this.diceBag = new DiceBag();
     this.players = players;
 

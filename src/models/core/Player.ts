@@ -28,11 +28,13 @@ export default class Player {
   roundScore: number;
   private currentRoundScore?: RoundScore;
   hasPandaToken: boolean;
+  shouldSeekYellow: boolean;
 
   constructor(name: string) {
     this.id = Player.generateId();
     this.name = name;
     this.hasPandaToken = false;
+    this.shouldSeekYellow = false;
 
     this.dice = [new YellowDie(6)];
     this.roundScore = 0;
@@ -68,6 +70,9 @@ export default class Player {
 
   public chooseDie(dice: Die[]) {
     if (dice.length === 0) return;
+    const yellowResult = this.tryPickYellow(dice);
+    if (yellowResult !== undefined) return yellowResult;
+
     const randomChoice = Math.floor(Math.random() * dice.length);
     const chosenDie = dice[randomChoice];
     if (chosenDie) {
@@ -75,6 +80,15 @@ export default class Player {
     }
 
     dice.splice(randomChoice, 1);
+    return dice;
+  }
+
+  protected tryPickYellow(dice: Die[]): Die[] | undefined {
+    if (!this.shouldSeekYellow) return undefined;
+    const yellowIndex = dice.findIndex((die) => die instanceof YellowDie);
+    if (yellowIndex === -1) return undefined;
+    this.dice.push(dice[yellowIndex]!);
+    dice.splice(yellowIndex, 1);
     return dice;
   }
 

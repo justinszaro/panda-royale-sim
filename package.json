@@ -32,9 +32,12 @@
   "scripts": {
     "build": "tsc",
     "prepack": "pnpm run build",
-    "test": "vitest"
+    "test": "vitest",
+    "knip": "knip"
   },
   "devDependencies": {
+    "@types/node": "^26.1.2",
+    "knip": "^6.32.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

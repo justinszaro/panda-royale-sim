@@ -42,9 +42,9 @@ export default class Game {
   private getPityDice(numPlayers: number) {
     let numOfDice;
     if (numPlayers <= 3) numOfDice = 1;
-    if (numPlayers <= 6) numOfDice = 2;
-    if (numPlayers <= 9) numOfDice = 3;
-    if (numPlayers <= 10) numOfDice = 4;
+    else if (numPlayers <= 6) numOfDice = 2;
+    else if (numPlayers <= 9) numOfDice = 3;
+    else numOfDice = 4;
 
     return new Array(numOfDice).fill(null).map(() => new PinkDie(12));
   }
@@ -206,6 +206,5 @@ export default class Game {
   }
 
   public finish() {
-    continue;
   }
 }

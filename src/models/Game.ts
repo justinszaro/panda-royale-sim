@@ -5,6 +5,12 @@ import Player from "./core/Player";
 
 const NUM_ROUNDS = 10;
 
+const PITY_DICE_THRESHOLDS: Array<{ maxPlayers: number; numDice: number }> = [
+  { maxPlayers: 3, numDice: 1 },
+  { maxPlayers: 6, numDice: 2 },
+  { maxPlayers: 9, numDice: 3 },
+];
+
 type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'gameover';
 
 export default class Game {
@@ -39,93 +45,105 @@ export default class Game {
     this.round = Math.min(round, NUM_ROUNDS);
   }
 
-  private getPityDice(numPlayers: number) {
-    let numOfDice;
-    if (numPlayers <= 3) numOfDice = 1;
-    else if (numPlayers <= 6) numOfDice = 2;
-    else if (numPlayers <= 9) numOfDice = 3;
-    else numOfDice = 4;
-
-    return new Array(numOfDice).fill(null).map(() => new PinkDie(12));
+  private getPityDice(numPlayers: number): PinkDie[] {
+    const threshold = PITY_DICE_THRESHOLDS.find((t) => numPlayers <= t.maxPlayers);
+    const numOfDice = threshold ? threshold.numDice : 4;
+    return Array.from({ length: numOfDice }, () => new PinkDie(12));
   }
 
-  public playRound() {
-    this.players.forEach((player: Player) => {
+  public playRound(): void {
+    this.rollAndScore();
+    this.collectPityDice();
+
+    if (this.round === NUM_ROUNDS) {
+      this.finished = true;
+      return;
+    }
+
+    const rankedPlayers = this.rankPlayersByRoundScore();
+    this.distributePityDice(rankedPlayers);
+
+    const yellowRanked = this.computeYellowRanking();
+    this.dicePool = this.diceBag.drawRandomDice(this.players.length + 1);
+
+    const humanIndex = yellowRanked.findIndex((p) => p.isHuman);
+    if (humanIndex !== -1) {
+      this.executePlayerPicks(yellowRanked.slice(0, humanIndex));
+      this.pickOrder = yellowRanked.slice(humanIndex + 1);
+      this.phase = 'awaiting-pick';
+      return;
+    }
+
+    this.executePlayerPicks(yellowRanked);
+    this.pickOrder = [];
+    this.finalizeDraft();
+  }
+
+  private rollAndScore(): void {
+    this.players.forEach((player) => {
       player.beginRound();
       player.rollDice();
       player.sumScore();
     });
+  }
 
+  private collectPityDice(): void {
     this.players.forEach((player) => {
       const pinkDice = player.dice.filter((die): die is PinkDie => die instanceof PinkDie);
       player.dice = player.dice.filter((die) => !(die instanceof PinkDie));
       this.pityDice.push(...pinkDice);
     });
+  }
 
-    if (this.round === NUM_ROUNDS) {
-      this.finished = true;
-      this.finish();
-    }
-
-    const scores = [...this.players].sort((a, b) => {
+  private rankPlayersByRoundScore(): Player[] {
+    return [...this.players].sort((a, b) => {
       if (b.roundScore !== a.roundScore) return b.roundScore - a.roundScore;
-      const aTotal = a.scores.reduce((acc, s) => acc + s.total, 0);
-      const bTotal = b.scores.reduce((acc, s) => acc + s.total, 0);
-      return bTotal - aTotal;
+      return b.totalScore - a.totalScore;
     });
+  }
 
+  private distributePityDice(rankedPlayers: Player[]): void {
     const numPityDice = this.pityDice.length;
-    scores.slice(-numPityDice).forEach((player, index) => {
+    rankedPlayers.slice(-numPityDice).forEach((player, index) => {
       const die = this.pityDice[index];
       if (die) player.dice.push(die);
     });
     this.pityDice = [];
+  }
 
+  private computeYellowRanking(): Player[] {
     const getYellowScore = (player: Player) =>
       player.scores[player.scores.length - 1]?.yellow ?? 0;
 
-    // Pre-compute re-rolls for any tied yellow scores before sorting
     const playersWithScores = this.players.map((p) => ({
       player: p,
       yellow: getYellowScore(p),
       reroll: 0,
     }));
+
     playersWithScores.forEach((entry) => {
       const hasTie = playersWithScores.some(
         (other) => other !== entry && other.yellow === entry.yellow,
       );
-      if (hasTie) entry.reroll = entry.player.reRollYellowDice();
+      if (hasTie) entry.reroll = entry.player.computeYellowTiebreaker();
     });
 
     const yellowRanked = playersWithScores
       .sort((a, b) => b.yellow - a.yellow || b.reroll - a.reroll)
       .map((entry) => entry.player);
 
-    // Highest yellow scorer gets the panda token
     this.players.forEach((p) => { p.hasPandaToken = false; });
     const pandaHolder = yellowRanked[0];
     if (pandaHolder) pandaHolder.hasPandaToken = true;
 
-    // Pick dice in yellow score order (highest to lowest)
-    this.dicePool = this.diceBag.drawRandomDice(this.players.length + 1);
+    return yellowRanked;
+  }
 
-    const humanIndex = yellowRanked.findIndex((p) => p.isHuman);
-    if (humanIndex !== -1) {
-      for (const player of yellowRanked.slice(0, humanIndex)) {
-        const result = player.chooseDie(this.dicePool);
-        if (result) this.dicePool = result;
-      }
-      this.pickOrder = yellowRanked.slice(humanIndex + 1);
-      this.phase = 'awaiting-pick';
-      return;
-    }
-
-    for (const player of yellowRanked) {
+  private executePlayerPicks(players: Player[]): void {
+    for (const player of players) {
       const result = player.chooseDie(this.dicePool);
       if (result) this.dicePool = result;
     }
-    this.pickOrder = [];
-    this.finalizeDraft();
   }
 
   public userPickDie(die: Die): void {
@@ -139,10 +157,7 @@ export default class Game {
   }
 
   public finalizeDraft(): void {
-    for (const player of this.pickOrder) {
-      const result = player.chooseDie(this.dicePool);
-      if (result) this.dicePool = result;
-    }
+    this.executePlayerPicks(this.pickOrder);
     this.pickOrder = [];
     this.diceBag.returnDice(this.dicePool);
     this.dicePool = [];
@@ -196,15 +211,7 @@ export default class Game {
     }
   }
 
-  public determineWinner() {
-    const sortedPlayers = [...this.players].sort(
-      (a, b) =>
-        b.scores.reduce((acc, score) => acc + score.total, 0) -
-        a.scores.reduce((acc, score) => acc + score.total, 0),
-    );
-    return sortedPlayers[0];
-  }
-
-  public finish() {
+  public determineWinner(): Player | undefined {
+    return [...this.players].sort((a, b) => b.totalScore - a.totalScore)[0];
   }
 }

@@ -1,4 +1,5 @@
 import Die from "./Die";
+import { generateId } from "./utils";
 import {
   BlueDie,
   ClearDie,
@@ -32,7 +33,7 @@ export default class Player {
   isHuman: boolean = false;
 
   constructor(name: string) {
-    this.id = Player.generateId();
+    this.id = generateId();
     this.name = name;
     this.hasPandaToken = false;
     this.shouldSeekYellow = false;
@@ -57,11 +58,11 @@ export default class Player {
     this.currentRoundScore = roundScore;
   }
 
-  public rollDice() {
+  public rollDice(): void {
     this.dice.forEach((die) => die.roll());
   }
 
-  public reRollYellowDice() {
+  public computeYellowTiebreaker(): number {
     const yellowDice = this.dice.filter((die) => die instanceof YellowDie);
     return yellowDice.reduce(
       (sum, die) => sum + Math.floor(Math.random() * die.sides) + 1,
@@ -69,7 +70,7 @@ export default class Player {
     );
   }
 
-  public chooseDie(dice: Die[]) {
+  public chooseDie(dice: Die[]): Die[] | undefined {
     if (dice.length === 0) return;
     const yellowResult = this.tryPickYellow(dice);
     if (yellowResult !== undefined) return yellowResult;
@@ -93,42 +94,36 @@ export default class Player {
     return dice;
   }
 
-  public tradeDie(players: Player[]) {
+  public tradeDie(players: Player[]): void {
     const whiteDice = this.dice.filter(
       (die): die is ClearDie =>
         die instanceof ClearDie && !(die as ClearDie).isTradable,
     );
-    if (whiteDice.length === 0) {
-      return null;
-    }
+    if (whiteDice.length === 0) return;
 
     for (const whiteDie of whiteDice) {
       whiteDie.isTradable = false;
 
       if (players.length === 0) continue;
-      const randomOponent = players[Math.floor(Math.random() * players.length)];
-      if (!randomOponent) continue;
-      const tradableDice = randomOponent.dice.filter(
+      const randomOpponent = players[Math.floor(Math.random() * players.length)];
+      if (!randomOpponent) continue;
+      const tradableDice = randomOpponent.dice.filter(
         (die) => !(die instanceof ClearDie),
       );
       if (tradableDice.length === 0) continue;
 
-      const randomDieIndex = Math.floor(Math.random() * tradableDice.length);
-      const dieToTrade = tradableDice[randomDieIndex];
+      const dieToTrade = tradableDice[Math.floor(Math.random() * tradableDice.length)];
       if (!dieToTrade) continue;
 
       this.dice = this.dice.filter((die) => die !== whiteDie);
-      randomOponent.dice = randomOponent.dice.filter(
-        (die) => die !== dieToTrade,
-      );
+      randomOpponent.dice = randomOpponent.dice.filter((die) => die !== dieToTrade);
 
       this.dice.push(dieToTrade);
-      randomOponent.dice.push(whiteDie);
+      randomOpponent.dice.push(whiteDie);
     }
   }
 
   public sumScore(): number {
-    const roundScore = this.getCurrentRoundScore();
     this.roundScore =
       this.sumYellowDice() +
       this.sumPurpleDice() +
@@ -137,68 +132,56 @@ export default class Player {
       this.sumGreenDice() +
       this.sumClearDice() +
       this.sumPinkDice();
-    roundScore.total = this.roundScore;
+    this.getCurrentRoundScore().total = this.roundScore;
 
     return this.roundScore;
   }
 
   public sumYellowDice(): number {
-    const yellowDice = this.dice.filter((die) => die instanceof YellowDie);
-    const sum = yellowDice.reduce((sum, die) => sum + (die?.value || 0), 0);
-
-    return this.recordScore("yellow", sum);
+    return this.sumDiceByType(YellowDie, "yellow");
   }
 
   public sumPurpleDice(): number {
-    const purpleDice = this.dice.filter((die) => die instanceof PurpleDie);
-    const sum = purpleDice.reduce((sum, die) => sum + (die?.value || 0), 0) * 2;
-
-    return this.recordScore("purple", sum);
+    return this.sumDiceByType(PurpleDie, "purple", (dice) =>
+      dice.reduce((s, d) => s + (d.value ?? 0), 0) * 2,
+    );
   }
 
   public sumBlueDice(): number {
-    const blueDice = this.dice.filter((die) => die instanceof BlueDie);
-    const hasGlitterDice = blueDice.some((die) => (die as BlueDie).isGlittery);
-
-    let sum = blueDice.reduce((sum, die) => sum + (die?.value || 0), 0);
-    if (hasGlitterDice) {
-      sum *= 2;
-    }
-
-    return this.recordScore("blue", sum);
+    return this.sumDiceByType(BlueDie, "blue", (dice) => {
+      const sum = dice.reduce((s, d) => s + (d.value ?? 0), 0);
+      return dice.some((d) => d.isGlittery) ? sum * 2 : sum;
+    });
   }
 
   public sumRedDice(): number {
-    const redDice = this.dice.filter((die) => die instanceof RedDie);
-    let sum = redDice.reduce((sum, die) => sum + (die?.value || 0), 0);
-
-    sum *= redDice.length;
-
-    return this.recordScore("red", sum);
+    return this.sumDiceByType(RedDie, "red", (dice) =>
+      dice.reduce((s, d) => s + (d.value ?? 0), 0) * dice.length,
+    );
   }
 
   public sumGreenDice(): number {
-    const greenDie = this.dice.find(
-      (die) => die instanceof GreenDie,
-    ) as GreenDie;
-    if (!greenDie) {
-      return this.recordScore("green", 0);
-    }
-
-    return this.recordScore("green", greenDie.value ?? 0);
+    const greenDie = this.dice.find((die) => die instanceof GreenDie);
+    return this.recordScore("green", greenDie?.value ?? 0);
   }
 
   public sumClearDice(): number {
-    const clearDice = this.dice.filter((die) => die instanceof ClearDie);
-    const sum = clearDice.reduce((sum, die) => sum + (die?.value || 0), 0);
-
-    return this.recordScore("clear", sum);
+    return this.sumDiceByType(ClearDie, "clear");
   }
 
   public sumPinkDice(): number {
-    const pinkDie = this.dice.find((die) => die instanceof PinkDie) as PinkDie;
-
+    const pinkDie = this.dice.find((die) => die instanceof PinkDie);
     return this.recordScore("pink", pinkDie?.value ?? 0);
+  }
+
+  private sumDiceByType<T extends Die>(
+    DieClass: new (...args: any[]) => T,
+    color: Exclude<keyof RoundScore, "total">,
+    compute?: (dice: T[]) => number,
+  ): number {
+    const dice = this.dice.filter((d): d is T => d instanceof DieClass);
+    const sum = compute ? compute(dice) : dice.reduce((s, d) => s + (d.value ?? 0), 0);
+    return this.recordScore(color, sum);
   }
 
   get totalScore(): number {
@@ -213,13 +196,6 @@ export default class Player {
     return `${this.name} - Dice: [${this.dice.map((die) => die.toString()).join(", ")}] - Scores: ${JSON.stringify(this.scores)}`;
   }
 
-  private static generateId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-
-    return `${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
-  }
 
   private getCurrentRoundScore(): RoundScore {
     if (!this.currentRoundScore) {

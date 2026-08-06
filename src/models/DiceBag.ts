@@ -9,37 +9,32 @@ import {
   YellowDie,
 } from './dice';
 
+const DIE_CONFIGS: Array<{ count: number; create: () => Die }> = [
+  { count: 7,  create: () => new YellowDie(8) },
+
+  { count: 10, create: () => new GreenDie(20) },
+
+  { count: 10, create: () => new BlueDie(6, false) },
+  { count: 9,  create: () => new BlueDie(8, false) },
+  { count: 9,  create: () => new BlueDie(12, false) },
+  { count: 7,  create: () => new BlueDie(6, true) },
+
+  { count: 7,  create: () => new PurpleDie(8) },
+  { count: 7,  create: () => new PurpleDie(12) },
+
+  { count: 10, create: () => new RedDie(6) },
+  { count: 9,  create: () => new RedDie(8) },
+
+  { count: 7,  create: () => new ClearDie(6, false) },
+];
+
 export default class DiceBag {
   public dice: Die[] = [];
 
   constructor() {
-    const dieConfigs = [
-      { DieClass: YellowDie, count: 7, sides: 8 },
-
-      { DieClass: GreenDie, count: 10, sides: 20 },
-
-      { DieClass: BlueDie, count: 10, sides: 6, isGlittery: false },
-      { DieClass: BlueDie, count: 9, sides: 8, isGlittery: false },
-      { DieClass: BlueDie, count: 9, sides: 12, isGlittery: false },
-      { DieClass: BlueDie, count: 7, sides: 6, isGlittery: true },
-
-      { DieClass: PurpleDie, count: 7, sides: 8 },
-      { DieClass: PurpleDie, count: 7, sides: 12 },
-
-      { DieClass: RedDie, count: 10, sides: 6 },
-      { DieClass: RedDie, count: 9, sides: 8 },
-
-      { DieClass: ClearDie, count: 7, sides: 6, isTradable: false },
-    ];
-    for (const { DieClass, count, sides, ...config } of dieConfigs) {
+    for (const { count, create } of DIE_CONFIGS) {
       for (let i = 0; i < count; i++) {
-        if (DieClass === BlueDie) {
-          this.dice.push(new BlueDie(sides, config.isGlittery ?? false));
-        } else if (DieClass === ClearDie) {
-          this.dice.push(new ClearDie(sides, config.isTradable ?? false));
-        } else {
-          this.dice.push(new DieClass(sides));
-        }
+        this.dice.push(create());
       }
     }
   }
@@ -58,7 +53,7 @@ export default class DiceBag {
     return drawnDice;
   }
 
-  public returnDice(diceToReturn: Die[]) {
+  public returnDice(diceToReturn: Die[]): void {
     this.dice.push(...diceToReturn);
   }
 }

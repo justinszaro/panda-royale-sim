@@ -1,3 +1,5 @@
+import { generateId } from "./utils";
+
 export default class Die {
   sides: number;
   value: number | null;
@@ -8,15 +10,7 @@ export default class Die {
   constructor(faces: number) {
     this.sides = faces;
     this.value = null;
-    this.id = Die.generateId();
-  }
-
-  private static generateId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
-    }
-
-    return `${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+    this.id = generateId();
   }
 
   public roll(): number {

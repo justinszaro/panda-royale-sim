@@ -9,6 +9,10 @@ import {
   YellowDie,
 } from './dice';
 
+/**
+ * Full composition of the shared dice pool used in a standard game.
+ * Each entry specifies how many dice of a given configuration to add.
+ */
 const DIE_CONFIGS: Array<{ count: number; create: () => Die }> = [
   { count: 7,  create: () => new YellowDie(8) },
 
@@ -28,7 +32,15 @@ const DIE_CONFIGS: Array<{ count: number; create: () => Die }> = [
   { count: 7,  create: () => new ClearDie(6, false) },
 ];
 
+/**
+ * The shared bag of dice from which players draft each round.
+ *
+ * On construction the bag is filled according to {@link DIE_CONFIGS}. The
+ * {@link Game} draws from the bag at the start of each draft phase and returns
+ * any unchosen dice at the end via {@link returnDice}.
+ */
 export default class DiceBag {
+  /** All dice currently in the bag. */
   public dice: Die[] = [];
 
   constructor() {
@@ -39,6 +51,12 @@ export default class DiceBag {
     }
   }
 
+  /**
+   * Randomly draws up to `numDice` dice from the bag without replacement.
+   *
+   * @param numDice - Maximum number of dice to draw.
+   * @returns The drawn dice (may be fewer than `numDice` if the bag runs low).
+   */
   public drawRandomDice(numDice: number): Die[] {
     const drawnDice: Die[] = [];
     for (let i = 0; i < numDice; i++) {
@@ -53,6 +71,11 @@ export default class DiceBag {
     return drawnDice;
   }
 
+  /**
+   * Returns dice to the bag, making them available for future draws.
+   *
+   * @param diceToReturn - Dice to add back into the bag.
+   */
   public returnDice(diceToReturn: Die[]): void {
     this.dice.push(...diceToReturn);
   }

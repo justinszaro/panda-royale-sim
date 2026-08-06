@@ -3,35 +3,83 @@ import Die from "./core/Die";
 import { ClearDie, PinkDie } from "./dice";
 import Player from "./core/Player";
 
+/** Total number of rounds in a standard match. */
 const NUM_ROUNDS = 10;
 
+/**
+ * Lookup table mapping player-count ranges to the number of pink pity dice
+ * awarded each round. Players beyond the highest threshold receive 4 dice.
+ */
 const PITY_DICE_THRESHOLDS: Array<{ maxPlayers: number; numDice: number }> = [
   { maxPlayers: 3, numDice: 1 },
   { maxPlayers: 6, numDice: 2 },
   { maxPlayers: 9, numDice: 3 },
 ];
 
+/**
+ * Describes the current state of the game loop.
+ *
+ * - `idle` — game not yet started.
+ * - `round-ready` — ready to begin the next round.
+ * - `awaiting-pick` — a human player must call {@link Game.userPickDie} before
+ *   the draft can continue.
+ * - `gameover` — all rounds have been played.
+ */
 type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'gameover';
 
+/** A single entry in the game log, associated with a round number. */
 export interface LogEntry {
   round: number;
   msg: string;
 }
 
+/**
+ * Orchestrates a full Panda Royale match.
+ *
+ * Call {@link playRound} each turn to advance the game. When a human player is
+ * present, `playRound` may pause at `phase === 'awaiting-pick'`; resume with
+ * {@link userPickDie} (and optionally {@link userTradeDie}) followed by
+ * {@link finalizeDraft}. Use {@link skipToEnd} to simulate a complete game
+ * without human interaction.
+ */
 export default class Game {
+  /** Current round number (1-based). */
   public round: number = 1;
+
+  /** Current phase of the game loop. */
   public phase: GamePhase = 'idle';
+
+  /** `true` once the final round has been completed. */
   public finished: boolean = false;
 
+  /** The shared bag from which dice are drawn each round. */
   public diceBag: DiceBag;
+
+  /** Dice currently available for players to pick from during the draft. */
   public dicePool: Die[] = [];
+
+  /**
+   * Players still waiting to pick after a human interruption, in draft order.
+   * Empty when no human player is in the game.
+   */
   public pickOrder: Player[] = [];
+
+  /** Players ordered for the trading phase (starting after the panda-token holder). */
   public tradeOrder: Player[] = [];
+
+  /** Pink pity dice collected at the end of each round for redistribution. */
   public pityDice: PinkDie[] = [];
+
+  /** Chronological log of game events. */
   public log: LogEntry[] = [];
 
+  /** All players participating in the match. */
   public players: Player[] = [];
 
+  /**
+   * @param players - Players joining the match. Include a {@link HumanPlayer}
+   *   instance to enable interactive mode.
+   */
   constructor(players: Player[]) {
     this.diceBag = new DiceBag();
     this.players = players;
@@ -39,10 +87,21 @@ export default class Game {
     this.pityDice = this.getPityDice(players.length);
   }
 
+  /**
+   * Returns the current round number.
+   *
+   * @returns The 1-based round number.
+   */
   public getRound(): number {
     return this.round;
   }
 
+  /**
+   * Sets the current round, clamping to the range `[1, NUM_ROUNDS]`.
+   *
+   * @param round - Target round number; must be a positive integer.
+   * @throws {RangeError} If `round` is not a positive integer.
+   */
   public setRound(round: number): void {
     if (!Number.isInteger(round) || round < 1) {
       throw new RangeError("round must be an integer >= 1");
@@ -51,16 +110,36 @@ export default class Game {
     this.round = Math.min(round, NUM_ROUNDS);
   }
 
+  /**
+   * Determines how many pink pity dice to use based on the number of players.
+   *
+   * @param numPlayers - Total number of players in the game.
+   * @returns An array of freshly created {@link PinkDie} instances.
+   */
   private getPityDice(numPlayers: number): PinkDie[] {
     const threshold = PITY_DICE_THRESHOLDS.find((t) => numPlayers <= t.maxPlayers);
     const numOfDice = threshold ? threshold.numDice : 4;
     return Array.from({ length: numOfDice }, () => new PinkDie(12));
   }
 
+  /**
+   * Appends a message to the game log, tagged with the current round.
+   *
+   * @param msg - Human-readable description of the event.
+   */
   private addLog(msg: string): void {
     this.log.push({ round: this.round, msg });
   }
 
+  /**
+   * Advances the game by one round.
+   *
+   * The method handles rolling, scoring, pity-die redistribution, yellow-die
+   * ranking, and the draft. When a human player is present the method pauses
+   * at `phase === 'awaiting-pick'` after auto-picking for all players who rank
+   * ahead of the human; call {@link userPickDie} then {@link finalizeDraft} to
+   * continue.
+   */
   public playRound(): void {
     this.addLog(`Round ${this.round} — rolling dice.`);
     this.rollAndScore();
@@ -91,6 +170,10 @@ export default class Game {
     this.finalizeDraft();
   }
 
+  /**
+   * Runs the roll-and-score phase: each player rolls their dice and records a
+   * round score.
+   */
   private rollAndScore(): void {
     this.players.forEach((player) => {
       player.beginRound();
@@ -100,6 +183,10 @@ export default class Game {
     });
   }
 
+  /**
+   * Collects all pink dice from players' hands back into the pity pool so they
+   * can be redistributed after ranking.
+   */
   private collectPityDice(): void {
     this.players.forEach((player) => {
       const pinkDice = player.dice.filter((die): die is PinkDie => die instanceof PinkDie);
@@ -108,6 +195,12 @@ export default class Game {
     });
   }
 
+  /**
+   * Sorts all players by their round score descending, using the cumulative
+   * total score as a tiebreaker.
+   *
+   * @returns A new array of players sorted from highest to lowest round score.
+   */
   private rankPlayersByRoundScore(): Player[] {
     return [...this.players].sort((a, b) => {
       if (b.roundScore !== a.roundScore) return b.roundScore - a.roundScore;
@@ -115,6 +208,12 @@ export default class Game {
     });
   }
 
+  /**
+   * Gives a pity die to each of the lowest-ranked players (tail of the ranked
+   * array). Clears {@link pityDice} after distribution.
+   *
+   * @param rankedPlayers - Players sorted from highest to lowest round score.
+   */
   private distributePityDice(rankedPlayers: Player[]): void {
     const numPityDice = this.pityDice.length;
     rankedPlayers.slice(-numPityDice).forEach((player, index) => {
@@ -127,6 +226,13 @@ export default class Game {
     this.pityDice = [];
   }
 
+  /**
+   * Determines draft order by ranking players on their yellow-die total for
+   * this round. Ties are broken by a fresh tiebreaker roll. Assigns the panda
+   * token to the highest-ranked player.
+   *
+   * @returns Players sorted from highest to lowest yellow score.
+   */
   private computeYellowRanking(): Player[] {
     const getYellowScore = (player: Player) =>
       player.scores[player.scores.length - 1]?.yellow ?? 0;
@@ -158,6 +264,12 @@ export default class Game {
     return yellowRanked;
   }
 
+  /**
+   * Runs the AI pick phase for a subset of players, consuming dice from
+   * {@link dicePool} in order.
+   *
+   * @param players - Players who should pick now, in draft order.
+   */
   private executePlayerPicks(players: Player[]): void {
     for (const player of players) {
       const before = [...this.dicePool];
@@ -170,6 +282,15 @@ export default class Game {
     }
   }
 
+  /**
+   * Handles the human player's die pick during `'awaiting-pick'` phase.
+   *
+   * Does nothing if the game is not awaiting a pick or if the chosen die is
+   * not in the current pool. After a valid pick, calls {@link finalizeDraft}
+   * automatically.
+   *
+   * @param die - The die the human player has chosen from {@link dicePool}.
+   */
   public userPickDie(die: Die): void {
     if (this.phase !== 'awaiting-pick') return;
     if (!this.dicePool.includes(die)) return;
@@ -183,6 +304,13 @@ export default class Game {
     this.finalizeDraft();
   }
 
+  /**
+   * Completes the draft phase: lets remaining AI players pick, returns leftover
+   * dice to the bag, and kicks off the trading phase.
+   *
+   * Call this after {@link userPickDie} (and any {@link userTradeDie} calls)
+   * when a human is in the game, or call it directly in fully automated games.
+   */
   public finalizeDraft(): void {
     this.executePlayerPicks(this.pickOrder);
     this.pickOrder = [];
@@ -198,6 +326,16 @@ export default class Game {
     this.finalizeTrading();
   }
 
+  /**
+   * Allows the human player to trade one of their clear dice for a specific die
+   * in the current pool during the `'awaiting-pick'` phase.
+   *
+   * Does nothing if the game is not in the awaiting-pick state, if no human
+   * player exists, or if either die cannot be found.
+   *
+   * @param clearDieId - ID of the clear die in the human player's hand to give away.
+   * @param poolDieId - ID of the die in {@link dicePool} to receive.
+   */
   public userTradeDie(clearDieId: string, poolDieId: string): void {
     if (this.phase !== 'awaiting-pick') return;
 
@@ -218,6 +356,10 @@ export default class Game {
     human.dice.push(poolDie);
   }
 
+  /**
+   * Runs the trading phase for all players in {@link tradeOrder}, then
+   * advances the round counter and sets {@link phase} to `'round-ready'`.
+   */
   public finalizeTrading(): void {
     while (this.tradeOrder.length > 0) {
       const player = this.tradeOrder.shift()!;
@@ -231,6 +373,10 @@ export default class Game {
     this.phase = 'round-ready';
   }
 
+  /**
+   * Simulates the remainder of the game automatically, making random picks on
+   * behalf of any human player. Useful for testing and simulation runs.
+   */
   public skipToEnd(): void {
     while (!this.finished) {
       this.playRound();
@@ -241,6 +387,12 @@ export default class Game {
     }
   }
 
+  /**
+   * Returns the player with the highest cumulative score, or `undefined` if
+   * there are no players.
+   *
+   * @returns The winning {@link Player}, or `undefined`.
+   */
   public determineWinner(): Player | undefined {
     return [...this.players].sort((a, b) => b.totalScore - a.totalScore)[0];
   }

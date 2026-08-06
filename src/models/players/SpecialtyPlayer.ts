@@ -2,14 +2,37 @@ import Die from "../core/Die";
 import { ClearDie } from "../dice";
 import Player from "../core/Player";
 
+/**
+ * Abstract base for AI players that have a preferred die colour.
+ *
+ * `SpecialtyPlayer` overrides {@link chooseDie} to always pick a die of the
+ * {@link favoriteDieClass} type when one is available, and overrides
+ * {@link tradeDie} to target opponents who hold that die type.
+ *
+ * Concrete subclasses (e.g. {@link BlueBen}, {@link RedRyder}) simply call
+ * `super(name, DieClass)` to wire up the preference.
+ */
 export abstract class SpecialtyPlayer extends Player {
+  /** The die class this player prioritises when drafting and trading. */
   protected readonly favoriteDieClass: new (...args: any[]) => Die;
 
+  /**
+   * @param name - Display name for the player.
+   * @param favoriteDieClass - Constructor of the preferred die type.
+   */
   constructor(name: string, favoriteDieClass: new (...args: any[]) => Die) {
     super(name);
     this.favoriteDieClass = favoriteDieClass;
   }
 
+  /**
+   * Picks a die of {@link favoriteDieClass} when available; falls back to
+   * {@link Player.chooseDie} (random selection) otherwise. Yellow-die
+   * preference via {@link tryPickYellow} is always checked first.
+   *
+   * @param dice - The current draft pool (mutated in place).
+   * @returns The remaining draft pool after the pick, or `undefined` when empty.
+   */
   public chooseDie(dice: Die[]): Die[] | undefined {
     const yellowResult = this.tryPickYellow(dice);
     if (yellowResult !== undefined) return yellowResult;
@@ -24,6 +47,14 @@ export abstract class SpecialtyPlayer extends Player {
     return super.chooseDie(dice);
   }
 
+  /**
+   * Trades clear dice for the player's favourite die type when any opponent
+   * holds one. Falls back to the default (random) trade when no opponent has
+   * the preferred die.
+   *
+   * @param players - All opponents (excluding this player).
+   * @returns An array describing each trade that occurred.
+   */
   public override tradeDie(players: Player[]): Array<{ gave: Die; got: Die; opponent: Player }> {
     const anyOpponentHasFavorite = players.some((p) =>
       p.dice.some((die) => die instanceof this.favoriteDieClass),

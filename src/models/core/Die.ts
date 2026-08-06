@@ -2,6 +2,7 @@ export default class Die {
   sides: number;
   value: number | null;
   readonly id: string;
+  isGlittery: boolean = false;
   static color?: string;
 
   constructor(faces: number) {

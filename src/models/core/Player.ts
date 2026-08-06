@@ -201,6 +201,14 @@ export default class Player {
     return this.recordScore("pink", pinkDie?.value ?? 0);
   }
 
+  get totalScore(): number {
+    return this.scores.reduce((sum, s) => sum + s.total, 0);
+  }
+
+  get roundScoreTotals(): number[] {
+    return this.scores.map((s) => s.total);
+  }
+
   public toString(): string {
     return `${this.name} - Dice: [${this.dice.map((die) => die.toString()).join(", ")}] - Scores: ${JSON.stringify(this.scores)}`;
   }

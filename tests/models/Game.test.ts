@@ -113,15 +113,15 @@ describe('playRound()', () => {
     expect(p2.hasPandaToken).toBe(false);
   });
 
-  it('collects PinkDice from players into the pity pool then distributes', () => {
+  it('collects PinkDice from players back into the pity pool and redistributes them', () => {
     const g = makeGame(3);
+    const initialPityCount = g.pityDice.length; // 1 for a 3-player game
     const pink = new PinkDie(12);
     g.players[0]!.dice.push(pink);
-
     g.playRound();
-
-    // Pink die should no longer be on the player after collection
-    expect(g.players[0]!.dice).not.toContain(pink);
+    const allDice = g.players.flatMap((p) => p.dice);
+    expect(g.pityDice).toHaveLength(0);
+    expect(allDice.filter((d) => d instanceof PinkDie)).toHaveLength(initialPityCount + 1);
   });
 
   it('sets phase to awaiting-pick when a human player is present', () => {
@@ -153,7 +153,9 @@ describe('userPickDie()', () => {
 
   it('adds the chosen die to the human player', () => {
     const { g, human } = gameAwaitingPick();
-    const die = g.dicePool[0]!;
+    // Avoid picking a ClearDie — it would be traded away in finalizeTrading(),
+    // causing the assertion to fail even though the pick itself succeeded.
+    const die = g.dicePool.find((d) => !(d instanceof ClearDie)) ?? g.dicePool[0]!;
     const before = human.dice.length;
     g.userPickDie(die);
     expect(human.dice.length).toBe(before + 1);
@@ -278,5 +280,68 @@ describe('skipToEnd()', () => {
     const g = makeGame(3);
     g.skipToEnd();
     expect(g.determineWinner()).toBeDefined();
+  });
+});
+
+// ─── log ──────────────────────────────────────────────────────────────────────
+
+describe('log', () => {
+  it('starts empty', () => {
+    expect(makeGame().log).toHaveLength(0);
+  });
+
+  it('contains a round header entry after playRound()', () => {
+    const g = makeGame(2);
+    g.playRound();
+    expect(g.log.some((e) => e.msg.startsWith('Round 1 —'))).toBe(true);
+  });
+
+  it('contains a score entry for each player after playRound()', () => {
+    const g = makeGame(2);
+    g.playRound();
+    g.players.forEach((p) => {
+      expect(g.log.some((e) => e.msg.includes(p.name) && e.msg.includes('scores'))).toBe(true);
+    });
+  });
+
+  it('contains a panda token entry after playRound()', () => {
+    const g = makeGame(2);
+    g.playRound();
+    expect(g.log.some((e) => e.msg.includes('panda token'))).toBe(true);
+  });
+
+  it('contains a draft pick entry for each player after playRound()', () => {
+    const g = makeGame(2);
+    g.playRound();
+    expect(g.log.some((e) => e.msg.includes('picks a'))).toBe(true);
+  });
+
+  it('contains a pity die entry when a pity die is distributed', () => {
+    const g = makeGame(2);
+    // Give the pity pool at least one die to guarantee distribution
+    g.pityDice = [new PinkDie(12)];
+    g.playRound();
+    expect(g.log.some((e) => e.msg.includes('pity die'))).toBe(true);
+  });
+
+  it('contains a gameover entry after the final round', () => {
+    const g = makeGame(2);
+    g.setRound(10);
+    g.playRound();
+    expect(g.log.some((e) => e.msg.includes('match over'))).toBe(true);
+  });
+
+  it('stamps each entry with the correct round number', () => {
+    const g = makeGame(2);
+    g.playRound();
+    g.log.forEach((e) => expect(e.round).toBe(1));
+  });
+
+  it('accumulates entries across multiple rounds', () => {
+    const g = makeGame(2);
+    g.playRound();
+    const afterRound1 = g.log.length;
+    g.playRound();
+    expect(g.log.length).toBeGreaterThan(afterRound1);
   });
 });

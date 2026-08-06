@@ -94,12 +94,13 @@ export default class Player {
     return dice;
   }
 
-  public tradeDie(players: Player[]): void {
+  public tradeDie(players: Player[]): Array<{ gave: Die; got: Die; opponent: Player }> {
+    const trades: Array<{ gave: Die; got: Die; opponent: Player }> = [];
     const whiteDice = this.dice.filter(
       (die): die is ClearDie =>
         die instanceof ClearDie && !(die as ClearDie).isTradable,
     );
-    if (whiteDice.length === 0) return;
+    if (whiteDice.length === 0) return trades;
 
     for (const whiteDie of whiteDice) {
       whiteDie.isTradable = false;
@@ -120,7 +121,11 @@ export default class Player {
 
       this.dice.push(dieToTrade);
       randomOpponent.dice.push(whiteDie);
+
+      trades.push({ gave: whiteDie, got: dieToTrade, opponent: randomOpponent });
     }
+
+    return trades;
   }
 
   public sumScore(): number {

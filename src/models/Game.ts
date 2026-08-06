@@ -13,6 +13,11 @@ const PITY_DICE_THRESHOLDS: Array<{ maxPlayers: number; numDice: number }> = [
 
 type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'gameover';
 
+export interface LogEntry {
+  round: number;
+  msg: string;
+}
+
 export default class Game {
   public round: number = 1;
   public phase: GamePhase = 'idle';
@@ -23,6 +28,7 @@ export default class Game {
   public pickOrder: Player[] = [];
   public tradeOrder: Player[] = [];
   public pityDice: PinkDie[] = [];
+  public log: LogEntry[] = [];
 
   public players: Player[] = [];
 
@@ -51,12 +57,18 @@ export default class Game {
     return Array.from({ length: numOfDice }, () => new PinkDie(12));
   }
 
+  private addLog(msg: string): void {
+    this.log.push({ round: this.round, msg });
+  }
+
   public playRound(): void {
+    this.addLog(`Round ${this.round} — rolling dice.`);
     this.rollAndScore();
     this.collectPityDice();
 
     if (this.round === NUM_ROUNDS) {
       this.finished = true;
+      this.addLog('Final round complete — match over.');
       return;
     }
 
@@ -84,6 +96,7 @@ export default class Game {
       player.beginRound();
       player.rollDice();
       player.sumScore();
+      this.addLog(`${player.name} scores ${player.roundScore} this round.`);
     });
   }
 
@@ -106,7 +119,10 @@ export default class Game {
     const numPityDice = this.pityDice.length;
     rankedPlayers.slice(-numPityDice).forEach((player, index) => {
       const die = this.pityDice[index];
-      if (die) player.dice.push(die);
+      if (die) {
+        player.dice.push(die);
+        this.addLog(`${player.name} receives a pink pity die.`);
+      }
     });
     this.pityDice = [];
   }
@@ -134,15 +150,23 @@ export default class Game {
 
     this.players.forEach((p) => { p.hasPandaToken = false; });
     const pandaHolder = yellowRanked[0];
-    if (pandaHolder) pandaHolder.hasPandaToken = true;
+    if (pandaHolder) {
+      pandaHolder.hasPandaToken = true;
+      this.addLog(`${pandaHolder.name} earns the panda token and drafts first.`);
+    }
 
     return yellowRanked;
   }
 
   private executePlayerPicks(players: Player[]): void {
     for (const player of players) {
+      const before = [...this.dicePool];
       const result = player.chooseDie(this.dicePool);
-      if (result) this.dicePool = result;
+      if (result) {
+        const picked = before.find((d) => !result.includes(d));
+        if (picked) this.addLog(`${player.name} picks a ${picked.color ?? 'clear'} d${picked.sides}.`);
+        this.dicePool = result;
+      }
     }
   }
 
@@ -152,7 +176,10 @@ export default class Game {
 
     this.dicePool = this.dicePool.filter((d) => d !== die);
     const human = this.players.find((p) => p.isHuman);
-    if (human) human.dice.push(die);
+    if (human) {
+      human.dice.push(die);
+      this.addLog(`${human.name} picks a ${die.color ?? 'clear'} d${die.sides}.`);
+    }
     this.finalizeDraft();
   }
 
@@ -194,7 +221,10 @@ export default class Game {
   public finalizeTrading(): void {
     while (this.tradeOrder.length > 0) {
       const player = this.tradeOrder.shift()!;
-      player.tradeDie(this.players.filter((p) => p !== player));
+      const trades = player.tradeDie(this.players.filter((p) => p !== player));
+      for (const { gave, got, opponent } of trades) {
+        this.addLog(`${player.name} trades a clear d${gave.sides} for ${opponent.name}'s ${got.color ?? 'clear'} d${got.sides}.`);
+      }
     }
 
     this.setRound(this.getRound() + 1);

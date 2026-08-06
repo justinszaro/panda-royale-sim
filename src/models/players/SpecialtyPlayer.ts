@@ -24,7 +24,7 @@ export abstract class SpecialtyPlayer extends Player {
     return super.chooseDie(dice);
   }
 
-  public tradeDie(players: Player[]): void {
+  public override tradeDie(players: Player[]): Array<{ gave: Die; got: Die; opponent: Player }> {
     const anyOpponentHasFavorite = players.some((p) =>
       p.dice.some((die) => die instanceof this.favoriteDieClass),
     );
@@ -32,11 +32,12 @@ export abstract class SpecialtyPlayer extends Player {
       return super.tradeDie(players);
     }
 
+    const trades: Array<{ gave: Die; got: Die; opponent: Player }> = [];
     const whiteDice = this.dice.filter(
       (die): die is ClearDie =>
         die instanceof ClearDie && !(die as ClearDie).isTradable,
     );
-    if (whiteDice.length === 0) return;
+    if (whiteDice.length === 0) return trades;
 
     for (const whiteDie of whiteDice) {
       whiteDie.isTradable = false;
@@ -60,6 +61,10 @@ export abstract class SpecialtyPlayer extends Player {
 
       this.dice.push(dieToTrade);
       randomOpponent.dice.push(whiteDie);
+
+      trades.push({ gave: whiteDie, got: dieToTrade, opponent: randomOpponent });
     }
+
+    return trades;
   }
 }

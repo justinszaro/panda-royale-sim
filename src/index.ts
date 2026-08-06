@@ -6,6 +6,7 @@ import PurplePepper from "./models/players/PurplePepper";
 import GreenGatsby from "./models/players/GreenGatsby";
 import BlueBen from "./models/players/BlueBen";
 import RedRyder from "./models/players/RedRyder";
+import type { LogEntry } from "./models/Game";
 
 export {
   Player,
@@ -17,3 +18,5 @@ export {
   BlueBen,
   RedRyder,
 };
+
+export type { LogEntry };

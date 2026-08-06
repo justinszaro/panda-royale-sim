@@ -1,45 +1,93 @@
-import { expect, describe, test, beforeAll } from 'vitest'
+import { describe, it, expect } from 'vitest';
 import DiceBag from '../../src/models/DiceBag';
+import { BlueDie, ClearDie, GreenDie, PurpleDie, RedDie, YellowDie } from '../../src/models/dice';
 
-describe('DiceBag', () => {
-  let diceBag;
+const TOTAL_DICE = 92; // 7+10+10+9+9+7+7+7+10+9+7
 
-  beforeAll(() => {
-    diceBag = new DiceBag();
-  })
+describe('DiceBag constructor', () => {
+  it('creates the correct total number of dice', () => {
+    expect(new DiceBag().dice).toHaveLength(TOTAL_DICE);
+  });
 
-  test('Should contain the correct total number of dice', () => {
-    expect(diceBag.dice.length).toBe(92);
-  })
+  it('contains the correct count of each die type', () => {
+    const bag = new DiceBag();
+    expect(bag.dice.filter((d) => d instanceof YellowDie)).toHaveLength(7);
+    expect(bag.dice.filter((d) => d instanceof GreenDie)).toHaveLength(10);
+    expect(bag.dice.filter((d) => d instanceof BlueDie)).toHaveLength(35);
+    expect(bag.dice.filter((d) => d instanceof PurpleDie)).toHaveLength(14);
+    expect(bag.dice.filter((d) => d instanceof RedDie)).toHaveLength(19);
+    expect(bag.dice.filter((d) => d instanceof ClearDie)).toHaveLength(7);
+  });
 
-  test('Should contain the correct number of each die type', () => {
-    const dieCounts: { [key: string]: number } = {};
+  it('includes yellow dice with 8 sides', () => {
+    const yellows = new DiceBag().dice.filter((d) => d instanceof YellowDie);
+    expect(yellows.every((d) => d.sides === 8)).toBe(true);
+  });
 
-    for (const die of diceBag.dice) {
-      const dieName = die.constructor.name;
-      dieCounts[dieName] = (dieCounts[dieName] || 0) + 1;
-    }
+  it('includes green dice with 20 sides', () => {
+    const greens = new DiceBag().dice.filter((d) => d instanceof GreenDie);
+    expect(greens.every((d) => d.sides === 20)).toBe(true);
+  });
 
-    expect(dieCounts['YellowDie']).toBe(7);
-    expect(dieCounts['GreenDie']).toBe(10);
-    expect(dieCounts['BlueDie']).toBe(35);
-    expect(dieCounts['PurpleDie']).toBe(14);
-    expect(dieCounts['RedDie']).toBe(19);
-    expect(dieCounts['ClearDie']).toBe(7);
-  })
+  it('has 7 glittery and 28 non-glittery blue dice', () => {
+    const blues = new DiceBag().dice.filter((d) => d instanceof BlueDie) as BlueDie[];
+    expect(blues.filter((d) => d.isGlittery)).toHaveLength(7);
+    expect(blues.filter((d) => !d.isGlittery)).toHaveLength(28);
+  });
 
-  test('Should correctly set properties for BlueDie and ClearDie', () => {
-    const blueDies = diceBag.dice.filter(die => die.constructor.name === 'BlueDie') as any[];
-    const clearDies = diceBag.dice.filter(die => die.constructor.name === 'ClearDie') as any[];
+  it('initializes all clear dice with isTradable=false', () => {
+    const clears = new DiceBag().dice.filter((d) => d instanceof ClearDie) as ClearDie[];
+    expect(clears.every((d) => !d.isTradable)).toBe(true);
+  });
 
-    const glitteryBlueDies = blueDies.filter(die => die.isGlittery);
-    const nonGlitteryBlueDies = blueDies.filter(die => !die.isGlittery);
+  it('assigns unique ids to every die', () => {
+    const ids = new DiceBag().dice.map((d) => d.id);
+    expect(new Set(ids).size).toBe(TOTAL_DICE);
+  });
+});
 
-    expect(glitteryBlueDies.length).toBe(7);
-    expect(nonGlitteryBlueDies.length).toBe(28); // 10 + 9 + 9
+describe('drawRandomDice()', () => {
+  it('returns the requested number of dice', () => {
+    expect(new DiceBag().drawRandomDice(5)).toHaveLength(5);
+  });
 
-    for (const clearDie of clearDies) {
-      expect(clearDie.isTradable).toBe(false);
-    }
-  })
-})
+  it('removes drawn dice from the bag', () => {
+    const bag = new DiceBag();
+    bag.drawRandomDice(10);
+    expect(bag.dice).toHaveLength(TOTAL_DICE - 10);
+  });
+
+  it('returns at most the remaining dice when asked for more than available', () => {
+    const bag = new DiceBag();
+    expect(bag.drawRandomDice(TOTAL_DICE + 100)).toHaveLength(TOTAL_DICE);
+    expect(bag.dice).toHaveLength(0);
+  });
+
+  it('returns an empty array from an empty bag', () => {
+    const bag = new DiceBag();
+    bag.drawRandomDice(TOTAL_DICE);
+    expect(bag.drawRandomDice(5)).toHaveLength(0);
+  });
+
+  it('does not return duplicate die instances', () => {
+    const bag = new DiceBag();
+    const drawn = bag.drawRandomDice(20);
+    const ids = drawn.map((d) => d.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('returnDice()', () => {
+  it('adds dice back into the bag', () => {
+    const bag = new DiceBag();
+    const drawn = bag.drawRandomDice(10);
+    bag.returnDice(drawn);
+    expect(bag.dice).toHaveLength(TOTAL_DICE);
+  });
+
+  it('accepts an empty array without error', () => {
+    const bag = new DiceBag();
+    expect(() => bag.returnDice([])).not.toThrow();
+    expect(bag.dice).toHaveLength(TOTAL_DICE);
+  });
+});

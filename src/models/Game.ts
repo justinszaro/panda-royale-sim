@@ -23,9 +23,11 @@ const PITY_DICE_THRESHOLDS: Array<{ maxPlayers: number; numDice: number }> = [
  * - `round-ready` — ready to begin the next round.
  * - `awaiting-pick` — a human player must call {@link Game.userPickDie} before
  *   the draft can continue.
+ * - `awaiting-trade` — a human player must call {@link Game.userMakeTrade} or
+ *   {@link Game.userFinishTrading} before the trading phase can continue.
  * - `gameover` — all rounds have been played.
  */
-type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'gameover';
+type GamePhase = 'idle' | 'round-ready' | 'awaiting-pick' | 'awaiting-trade' | 'gameover';
 
 /** A single entry in the game log, associated with a round number. */
 export interface LogEntry {
@@ -357,12 +359,28 @@ export default class Game {
   }
 
   /**
-   * Runs the trading phase for all players in {@link tradeOrder}, then
-   * advances the round counter and sets {@link phase} to `'round-ready'`.
+   * Runs the trading phase for all players in {@link tradeOrder}. When the
+   * human player's turn is reached and they hold at least one tradable clear
+   * die, the method pauses at `phase === 'awaiting-trade'`. Resume by calling
+   * {@link userMakeTrade} (once per trade) and {@link userFinishTrading} when
+   * done. After all players have traded, advances the round counter and sets
+   * `phase` to `'round-ready'`.
    */
   public finalizeTrading(): void {
     while (this.tradeOrder.length > 0) {
-      const player = this.tradeOrder.shift()!;
+      const player = this.tradeOrder[0]!;
+
+      if (player.isHuman) {
+        const hasTradableClear = player.dice.some(
+          (d): d is ClearDie => d instanceof ClearDie && !d.isTradable,
+        );
+        if (hasTradableClear) {
+          this.phase = 'awaiting-trade';
+          return;
+        }
+      }
+
+      this.tradeOrder.shift();
       const trades = player.tradeDie(this.players.filter((p) => p !== player));
       for (const { gave, got, opponent } of trades) {
         this.addLog(`${player.name} trades a clear d${gave.sides} for ${opponent.name}'s ${got.color ?? 'clear'} d${got.sides}.`);
@@ -371,6 +389,57 @@ export default class Game {
 
     this.setRound(this.getRound() + 1);
     this.phase = 'round-ready';
+  }
+
+  /**
+   * Executes one trade for the human player during the `'awaiting-trade'`
+   * phase: gives away a clear die and receives a non-pink, non-clear die from
+   * the chosen opponent.
+   *
+   * Does nothing if the phase is wrong, either die cannot be found, or the
+   * target die is pink or clear.
+   *
+   * @param clearDieId - ID of the clear die in the human's hand to give away.
+   * @param opponentId - ID of the opponent player to trade with.
+   * @param targetDieId - ID of the opponent's die to receive.
+   */
+  public userMakeTrade(clearDieId: string, opponentId: string, targetDieId: string): void {
+    if (this.phase !== 'awaiting-trade') return;
+
+    const human = this.players.find((p) => p.isHuman);
+    if (!human) return;
+
+    const clearDie = human.dice.find(
+      (d): d is ClearDie => d instanceof ClearDie && d.id === clearDieId && !d.isTradable,
+    );
+    if (!clearDie) return;
+
+    const opponent = this.players.find((p) => p.id === opponentId && !p.isHuman);
+    if (!opponent) return;
+
+    const targetDie = opponent.dice.find(
+      (d) => d.id === targetDieId && !(d instanceof ClearDie) && !(d instanceof PinkDie),
+    );
+    if (!targetDie) return;
+
+    clearDie.isTradable = true;
+    human.dice = human.dice.filter((d) => d !== clearDie);
+    opponent.dice = opponent.dice.filter((d) => d !== targetDie);
+    human.dice.push(targetDie);
+    opponent.dice.push(clearDie);
+
+    this.addLog(`${human.name} trades a clear d${clearDie.sides} for ${opponent.name}'s ${targetDie.color ?? 'clear'} d${targetDie.sides}.`);
+  }
+
+  /**
+   * Signals that the human player is done trading for this round, advancing
+   * past their turn in the trade order and resuming {@link finalizeTrading}
+   * for any remaining AI players.
+   */
+  public userFinishTrading(): void {
+    if (this.phase !== 'awaiting-trade') return;
+    this.tradeOrder.shift();
+    this.finalizeTrading();
   }
 
   /**
@@ -383,6 +452,9 @@ export default class Game {
       if (this.phase === 'awaiting-pick') {
         const randomDie = this.dicePool[Math.floor(Math.random() * this.dicePool.length)];
         if (randomDie) this.userPickDie(randomDie);
+      }
+      if (this.phase === 'awaiting-trade') {
+        this.userFinishTrading();
       }
     }
   }

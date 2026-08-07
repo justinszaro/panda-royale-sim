@@ -91,6 +91,10 @@ export default class Player {
 
     this.scores.push(roundScore);
     this.currentRoundScore = roundScore;
+
+    for (const die of this.dice) {
+      if (die instanceof ClearDie) die.isTradable = false;
+    }
   }
 
   /**
@@ -175,13 +179,13 @@ export default class Player {
     if (whiteDice.length === 0) return trades;
 
     for (const whiteDie of whiteDice) {
-      whiteDie.isTradable = false;
+      whiteDie.isTradable = true;
 
       if (players.length === 0) continue;
       const randomOpponent = players[Math.floor(Math.random() * players.length)];
       if (!randomOpponent) continue;
       const tradableDice = randomOpponent.dice.filter(
-        (die) => !(die instanceof ClearDie),
+        (die) => !(die instanceof ClearDie) && !(die instanceof PinkDie),
       );
       if (tradableDice.length === 0) continue;
 

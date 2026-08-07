@@ -136,11 +136,14 @@ export default class Game {
   /**
    * Advances the game by one round.
    *
-   * The method handles rolling, scoring, pity-die redistribution, yellow-die
-   * ranking, and the draft. When a human player is present the method pauses
-   * at `phase === 'awaiting-pick'` after auto-picking for all players who rank
-   * ahead of the human; call {@link userPickDie} then {@link finalizeDraft} to
-   * continue.
+   * Rolls and scores the current hand, then runs the trading phase (players
+   * trade clear dice before picking new ones). When a human player has
+   * tradable clear dice the method pauses at `phase === 'awaiting-trade'`;
+   * resume with {@link userMakeTrade} / {@link userFinishTrading}.
+   *
+   * Once trading is complete the draft begins. When a human player is present
+   * the method pauses at `phase === 'awaiting-pick'`; resume with
+   * {@link userPickDie}.
    */
   public playRound(): void {
     this.addLog(`Round ${this.round} — rolling dice.`);
@@ -156,6 +159,25 @@ export default class Game {
     const rankedPlayers = this.rankPlayersByRoundScore();
     this.distributePityDice(rankedPlayers);
 
+    // Trading phase runs BEFORE the draft, using dice from the current hand.
+    const pandaHolder = this.players.find((p) => p.hasPandaToken);
+    const pandaIndex = pandaHolder ? this.players.indexOf(pandaHolder) : -1;
+    this.tradeOrder = [
+      ...this.players.slice(pandaIndex + 1),
+      ...this.players.slice(0, pandaIndex + 1),
+    ];
+    this.finalizeTrading();
+    if (this.phase === 'awaiting-trade') return;
+
+    this.startDraft();
+  }
+
+  /**
+   * Computes the yellow ranking and runs the draft phase. Called automatically
+   * by {@link playRound} once trading is complete, and by
+   * {@link userFinishTrading} after the human finishes trading.
+   */
+  private startDraft(): void {
     const yellowRanked = this.computeYellowRanking();
     this.dicePool = this.diceBag.drawRandomDice(this.players.length + 1);
 
@@ -308,24 +330,16 @@ export default class Game {
 
   /**
    * Completes the draft phase: lets remaining AI players pick, returns leftover
-   * dice to the bag, and kicks off the trading phase.
-   *
-   * Call this after {@link userPickDie} (and any {@link userTradeDie} calls)
-   * when a human is in the game, or call it directly in fully automated games.
+   * dice to the bag, then advances the round counter and sets
+   * `phase` to `'round-ready'`.
    */
   public finalizeDraft(): void {
     this.executePlayerPicks(this.pickOrder);
     this.pickOrder = [];
     this.diceBag.returnDice(this.dicePool);
     this.dicePool = [];
-
-    const pandaHolder = this.players.find((p) => p.hasPandaToken);
-    const pandaIndex = pandaHolder ? this.players.indexOf(pandaHolder) : -1;
-    this.tradeOrder = [
-      ...this.players.slice(pandaIndex + 1),
-      ...this.players.slice(0, pandaIndex + 1),
-    ];
-    this.finalizeTrading();
+    this.setRound(this.getRound() + 1);
+    this.phase = 'round-ready';
   }
 
   /**
@@ -363,8 +377,10 @@ export default class Game {
    * human player's turn is reached and they hold at least one tradable clear
    * die, the method pauses at `phase === 'awaiting-trade'`. Resume by calling
    * {@link userMakeTrade} (once per trade) and {@link userFinishTrading} when
-   * done. After all players have traded, advances the round counter and sets
-   * `phase` to `'round-ready'`.
+   * done.
+   *
+   * When all players have traded the method returns normally; the caller is
+   * responsible for starting the next phase (draft or round-ready).
    */
   public finalizeTrading(): void {
     while (this.tradeOrder.length > 0) {
@@ -386,9 +402,6 @@ export default class Game {
         this.addLog(`${player.name} trades a clear d${gave.sides} for ${opponent.name}'s ${got.color ?? 'clear'} d${got.sides}.`);
       }
     }
-
-    this.setRound(this.getRound() + 1);
-    this.phase = 'round-ready';
   }
 
   /**
@@ -434,12 +447,16 @@ export default class Game {
   /**
    * Signals that the human player is done trading for this round, advancing
    * past their turn in the trade order and resuming {@link finalizeTrading}
-   * for any remaining AI players.
+   * for any remaining AI players. Once all trading is complete the draft
+   * phase begins automatically.
    */
   public userFinishTrading(): void {
     if (this.phase !== 'awaiting-trade') return;
     this.tradeOrder.shift();
     this.finalizeTrading();
+    if (this.tradeOrder.length === 0) {
+      this.startDraft();
+    }
   }
 
   /**
@@ -449,12 +466,12 @@ export default class Game {
   public skipToEnd(): void {
     while (!this.finished) {
       this.playRound();
+      if (this.phase === 'awaiting-trade') {
+        this.userFinishTrading();
+      }
       if (this.phase === 'awaiting-pick') {
         const randomDie = this.dicePool[Math.floor(Math.random() * this.dicePool.length)];
         if (randomDie) this.userPickDie(randomDie);
-      }
-      if (this.phase === 'awaiting-trade') {
-        this.userFinishTrading();
       }
     }
   }
